@@ -26,6 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 enum TokenType {
     Integer,
     Plus,
+    Minus,
     Eof,
     None,
 }
@@ -33,7 +34,7 @@ enum TokenType {
 #[derive(Debug, Clone)]
 struct Token {
     kind: TokenType,
-    value: char,
+    value: String,
 }
 
 impl AsRef<Token> for Token {
@@ -45,14 +46,14 @@ impl AsRef<Token> for Token {
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let kind = &self.kind;
-        let value = self.value;
+        let value = &self.value;
 
         write!(f, "Token({:?}, {})", kind, value)
     }
 }
 
 impl Token {
-    fn new(kind: TokenType, value: char) -> Self {
+    fn new(kind: TokenType, value: String) -> Self {
         Self { kind, value }
     }
 }
@@ -61,6 +62,7 @@ struct Interpreter<'a> {
     text: &'a [char],
     pos: usize,
     current_token: Token,
+    current_char: char,
 }
 
 impl<'a> Interpreter<'a> {
@@ -68,8 +70,39 @@ impl<'a> Interpreter<'a> {
         Self {
             text,
             pos: 0,
-            current_token: Token::new(TokenType::None, '\0'),
+            current_token: Token::new(TokenType::None, '\0'.to_string()),
+            current_char: text[0],
         }
+    }
+
+    /// Advance position in text and set the current char.
+    fn advance(&mut self) {
+        self.pos += 1;
+
+        match self.pos > self.text.len() - 1 {
+            true => self.current_char = '\0',
+            false => self.current_char = self.text[self.pos],
+        }
+    }
+
+    /// Advance until the current char is neither a null char nor whitespace.
+    fn skip_whitespace(&mut self) {
+        while self.current_char != '\0' && self.current_char.is_whitespace() {
+            self.advance();
+        }
+    }
+
+    /// Return a integer consumed from the input
+    fn integer(&mut self) -> String {
+        let mut result = String::new();
+        while self.current_char != '\0' && self.current_char.is_ascii_digit() {
+            result.push(self.current_char);
+            self.advance();
+        }
+
+        // we have previously checked that the chars are ascii digits so it
+        // should be safe to unwrap
+        result
     }
 
     /// The method is responsible for breaking sentences apart and return one token at a time.
@@ -78,34 +111,31 @@ impl<'a> Interpreter<'a> {
     ///
     /// This method errors if the character does not match any of the defined token types.
     fn get_next_token(&mut self) -> Result<Token, Box<dyn std::error::Error>> {
-        let text = self.text;
+        while self.current_char != '\0' {
+            if self.current_char.is_whitespace() {
+                self.skip_whitespace();
+                continue;
+            }
 
-        // if the index is past the end of the text we'll return `Eof` since
-        // there is nothing left to tokenize
-        if self.pos > text.len() - 1 {
-            return Ok(Token::new(TokenType::Eof, '\0'));
+            if self.current_char.is_ascii_digit() {
+                return Ok(Token::new(TokenType::Integer, self.integer()));
+            }
+
+            if self.current_char == '+' {
+                self.advance();
+                return Ok(Token::new(TokenType::Plus, '+'.to_string()));
+            }
+
+            if self.current_char == '-' {
+                self.advance();
+                return Ok(Token::new(TokenType::Minus, '-'.to_string()));
+            }
+
+            // TODO: improve error types
+            return Err(format!("Error parsing input: {}", self.current_char).into());
         }
 
-        // get the character at the current position and create a token based
-        // on the type of character
-        let current_char = text[self.pos];
-
-        if current_char.is_ascii_digit() {
-            let token = Token::new(TokenType::Integer, current_char);
-
-            self.pos += 1;
-
-            return Ok(token);
-        }
-
-        if current_char == '+' {
-            let token = Token::new(TokenType::Plus, current_char);
-            self.pos += 1;
-
-            return Ok(token);
-        }
-
-        Err(format!("Error parsing input: {}", current_char).into()) // TODO: improve error types
+        Ok(Token::new(TokenType::Eof, '\0'.to_string()))
     }
 
     /// Compare current token type to with the passed tokens type, eat the current token if they
@@ -135,14 +165,14 @@ impl<'a> Interpreter<'a> {
         self.current_token = self.get_next_token()?;
 
         // the next token should be a single-digit integer
-        let left = self.current_token.as_ref().value.to_digit(10).unwrap();
+        let left: u32 = self.current_token.as_ref().value.parse()?;
         self.eat(TokenType::Integer)?;
 
         // the next token should be a '+' token
         let _op = self.current_token.as_ref();
         self.eat(TokenType::Plus)?;
 
-        let right = self.current_token.as_ref().value.to_digit(10).unwrap();
+        let right: u32 = self.current_token.as_ref().value.parse()?;
         self.eat(TokenType::Integer)?;
 
         Ok(left + right)
