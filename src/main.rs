@@ -31,38 +31,9 @@ enum TokenType {
 }
 
 #[derive(Debug, Clone)]
-enum TokenValue {
-    Integer(u32),
-    Plus(char),
-    None,
-}
-
-impl TryInto<u32> for TokenValue {
-    type Error = Box<dyn std::error::Error>;
-
-    fn try_into(self) -> Result<u32, Self::Error> {
-        if let TokenValue::Integer(num) = self {
-            Ok(num)
-        } else {
-            Err("Not a number".into())
-        }
-    }
-}
-
-impl std::fmt::Display for TokenValue {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TokenValue::Integer(int) => write!(f, "{}", int),
-            TokenValue::Plus(c) => write!(f, "{}", c),
-            TokenValue::None => write!(f, "None"),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
 struct Token {
     kind: TokenType,
-    value: TokenValue,
+    value: char,
 }
 
 impl AsRef<Token> for Token {
@@ -74,14 +45,14 @@ impl AsRef<Token> for Token {
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let kind = &self.kind;
-        let value = &self.value;
+        let value = self.value;
 
         write!(f, "Token({:?}, {})", kind, value)
     }
 }
 
 impl Token {
-    fn new(kind: TokenType, value: TokenValue) -> Self {
+    fn new(kind: TokenType, value: char) -> Self {
         Self { kind, value }
     }
 }
@@ -97,7 +68,7 @@ impl<'a> Interpreter<'a> {
         Self {
             text,
             pos: 0,
-            current_token: Token::new(TokenType::None, TokenValue::None),
+            current_token: Token::new(TokenType::None, '\0'),
         }
     }
 
@@ -112,7 +83,7 @@ impl<'a> Interpreter<'a> {
         // if the index is past the end of the text we'll return `Eof` since
         // there is nothing left to tokenize
         if self.pos > text.len() - 1 {
-            return Ok(Token::new(TokenType::Eof, TokenValue::None));
+            return Ok(Token::new(TokenType::Eof, '\0'));
         }
 
         // get the character at the current position and create a token based
@@ -120,10 +91,7 @@ impl<'a> Interpreter<'a> {
         let current_char = text[self.pos];
 
         if current_char.is_ascii_digit() {
-            let token = Token::new(
-                TokenType::Integer,
-                TokenValue::Integer(current_char.to_digit(10).expect("Char should be a digit")),
-            );
+            let token = Token::new(TokenType::Integer, current_char);
 
             self.pos += 1;
 
@@ -131,7 +99,7 @@ impl<'a> Interpreter<'a> {
         }
 
         if current_char == '+' {
-            let token = Token::new(TokenType::Plus, TokenValue::Plus(current_char));
+            let token = Token::new(TokenType::Plus, current_char);
             self.pos += 1;
 
             return Ok(token);
@@ -169,14 +137,14 @@ impl<'a> Interpreter<'a> {
         self.current_token = self.get_next_token()?;
 
         // the next token should be a single-digit integer
-        let left: u32 = self.current_token.as_ref().value.clone().try_into()?;
+        let left = self.current_token.as_ref().value.to_digit(10).unwrap();
         self.eat(TokenType::Integer)?;
 
         // the next token should be a '+' token
         let _op = self.current_token.as_ref();
         self.eat(TokenType::Plus)?;
 
-        let right: u32 = self.current_token.as_ref().value.clone().try_into()?;
+        let right = self.current_token.as_ref().value.to_digit(10).unwrap();
         self.eat(TokenType::Integer)?;
 
         Ok(left + right)
