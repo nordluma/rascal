@@ -1,5 +1,25 @@
-fn main() {
-    println!("Hello, world!");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut buffer = String::new();
+
+    loop {
+        if let Err(e) = std::io::stdin().read_line(&mut buffer) {
+            eprintln!("{}", e);
+            break;
+        }
+
+        if buffer.is_empty() {
+            continue;
+        }
+
+        let chars = buffer.trim_end().to_string().chars().collect::<Vec<_>>();
+        let mut interpreter = Interpreter::new(&chars);
+        let result = interpreter.expr()?;
+
+        println!("{}", result);
+        buffer.clear();
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,7 +137,7 @@ impl<'a> Interpreter<'a> {
             return Ok(token);
         }
 
-        Err("Error parsing input".into()) // TODO: improve error types
+        Err(format!("Error parsing input: {}", current_char).into()) // TODO: improve error types
     }
 
     /// Compare current token type to with the passed tokens type, eat the current token if they
