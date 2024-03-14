@@ -169,12 +169,20 @@ impl<'a> Interpreter<'a> {
         self.eat(TokenType::Integer)?;
 
         // the next token should be a '+' token
-        let _op = self.current_token.as_ref();
-        self.eat(TokenType::Plus)?;
+        let op = self.current_token.clone();
+        match op.kind {
+            TokenType::Plus => self.eat(TokenType::Plus)?,
+            TokenType::Minus => self.eat(TokenType::Minus)?,
+            _ => {}
+        }
 
         let right: u32 = self.current_token.as_ref().value.parse()?;
         self.eat(TokenType::Integer)?;
 
-        Ok(left + right)
+        match &op.kind {
+            TokenType::Plus => Ok(left + right),
+            TokenType::Minus => Ok(left - right),
+            op => Err(format!("Operation not allowed: {:?}", op).into()),
+        }
     }
 }
