@@ -7,6 +7,7 @@ enum TokenType {
     Integer,
     Plus,
     Eof,
+    None,
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +57,7 @@ impl Token {
 struct Interpreter<'a> {
     text: &'a [char],
     pos: usize,
-    current_token: Option<Token>,
+    current_token: Token,
 }
 
 impl<'a> Interpreter<'a> {
@@ -64,7 +65,7 @@ impl<'a> Interpreter<'a> {
         Self {
             text,
             pos: 0,
-            current_token: None,
+            current_token: Token::new(TokenType::None, TokenValue::None),
         }
     }
 
@@ -114,14 +115,11 @@ impl<'a> Interpreter<'a> {
     ///
     /// If the tokens do not match.
     fn eat(&mut self, token_type: TokenType) -> Result<(), Box<dyn std::error::Error>> {
-        let matches = self
-            .current_token
-            .as_ref()
-            .is_some_and(|t| t.kind == token_type);
+        let matches = self.current_token.as_ref().kind == token_type;
 
         match matches {
             true => {
-                self.current_token = Some(self.get_next_token()?);
+                self.current_token = self.get_next_token()?;
                 Ok(())
             }
             false => Err("tokens do not match".into()),
