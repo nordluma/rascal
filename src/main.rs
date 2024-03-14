@@ -164,11 +164,11 @@ impl<'a> Interpreter<'a> {
         // set current token to be the first token taken from the the input
         self.current_token = self.get_next_token()?;
 
-        // the next token should be a single-digit integer
+        // the next token should be an integer
         let left: u32 = self.current_token.as_ref().value.parse()?;
         self.eat(TokenType::Integer)?;
 
-        // the next token should be a '+' token
+        // the next token should be a '+' or '-' token
         let op = self.current_token.clone();
         match op.kind {
             TokenType::Plus => self.eat(TokenType::Plus)?,
@@ -176,6 +176,7 @@ impl<'a> Interpreter<'a> {
             _ => {}
         }
 
+        // the next token should be an integer
         let right: u32 = self.current_token.as_ref().value.parse()?;
         self.eat(TokenType::Integer)?;
 
