@@ -115,15 +115,13 @@ impl<'a> Interpreter<'a> {
     ///
     /// If the tokens do not match.
     fn eat(&mut self, token_type: TokenType) -> Result<(), Box<dyn std::error::Error>> {
-        let matches = self.current_token.as_ref().kind == token_type;
+        if self.current_token.kind == token_type {
+            self.current_token = self.get_next_token()?;
 
-        match matches {
-            true => {
-                self.current_token = self.get_next_token()?;
-                Ok(())
-            }
-            false => Err("tokens do not match".into()),
+            return Ok(());
         }
+
+        Err("tokens do not match".into())
     }
 
     /// Evaluate the expression.
