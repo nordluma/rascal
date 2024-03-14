@@ -2,13 +2,14 @@ fn main() {
     println!("Hello, world!");
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum TokenType {
     Integer,
     Plus,
     Eof,
 }
 
+#[derive(Debug, Clone)]
 enum TokenValue {
     Integer(u32),
     Plus(char),
@@ -25,9 +26,16 @@ impl std::fmt::Display for TokenValue {
     }
 }
 
+#[derive(Debug, Clone)]
 struct Token {
     kind: TokenType,
     value: TokenValue,
+}
+
+impl AsRef<Token> for Token {
+    fn as_ref(&self) -> &Token {
+        self
+    }
 }
 
 impl std::fmt::Display for Token {
@@ -97,5 +105,26 @@ impl<'a> Interpreter<'a> {
         }
 
         Err("Error parsing input".into()) // TODO: improve error types
+    }
+
+    /// Compare current token type to with the passed tokens type, eat the current token if they
+    /// match and assign the next token as the `current_token`.
+    ///
+    /// # Errors
+    ///
+    /// If the tokens do not match.
+    fn eat(&mut self, token_type: TokenType) -> Result<(), Box<dyn std::error::Error>> {
+        let matches = self
+            .current_token
+            .as_ref()
+            .is_some_and(|t| t.kind == token_type);
+
+        match matches {
+            true => {
+                self.current_token = Some(self.get_next_token()?);
+                Ok(())
+            }
+            false => Err("tokens do not match".into()),
+        }
     }
 }
