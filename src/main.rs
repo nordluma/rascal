@@ -10,7 +10,7 @@ enum TokenType {
 }
 
 enum TokenValue {
-    Integer(u8),
+    Integer(u32),
     Plus(char),
     None,
 }
