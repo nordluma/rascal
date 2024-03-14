@@ -17,6 +17,18 @@ enum TokenValue {
     None,
 }
 
+impl TryInto<u32> for TokenValue {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_into(self) -> Result<u32, Self::Error> {
+        if let TokenValue::Integer(num) = self {
+            Ok(num)
+        } else {
+            Err("Not a number".into())
+        }
+    }
+}
+
 impl std::fmt::Display for TokenValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -124,5 +136,29 @@ impl<'a> Interpreter<'a> {
             }
             false => Err("tokens do not match".into()),
         }
+    }
+
+    /// Evaluate the expression.
+    ///
+    /// # Errors
+    ///
+    /// This method errors if the input cannot be tokenized or if we could not "parse" the token
+    /// values.
+    fn expr(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
+        // set current token to be the first token taken from the the input
+        self.current_token = self.get_next_token()?;
+
+        // the next token should be a single-digit integer
+        let left: u32 = self.current_token.as_ref().value.clone().try_into()?;
+        self.eat(TokenType::Integer)?;
+
+        // the next token should be a '+' token
+        let _op = self.current_token.as_ref();
+        self.eat(TokenType::Plus)?;
+
+        let right: u32 = self.current_token.as_ref().value.clone().try_into()?;
+        self.eat(TokenType::Integer)?;
+
+        Ok(left + right)
     }
 }
