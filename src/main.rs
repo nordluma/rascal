@@ -56,8 +56,11 @@ impl std::fmt::Display for Token {
 }
 
 impl Token {
-    fn new(kind: TokenType, value: String) -> Self {
-        Self { kind, value }
+    fn new(kind: TokenType, value: impl ToString) -> Self {
+        Self {
+            kind,
+            value: value.to_string(),
+        }
     }
 }
 
@@ -123,11 +126,11 @@ impl<'a> Lexer<'a> {
                 }
                 '*' => {
                     self.advance();
-                    return Ok(Token::new(TokenType::Mul, '*'.to_string()));
+                    return Ok(Token::new(TokenType::Mul, '*'));
                 }
                 '/' => {
                     self.advance();
-                    return Ok(Token::new(TokenType::Div, '/'.to_string()));
+                    return Ok(Token::new(TokenType::Div, '/'));
                 }
                 c => {
                     // TODO: improve error types
@@ -136,7 +139,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        Ok(Token::new(TokenType::Eof, '\0'.to_string()))
+        Ok(Token::new(TokenType::Eof, '\0'))
     }
 }
 
