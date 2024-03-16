@@ -154,36 +154,48 @@ impl<'a> Interpreter<'a> {
         Err("tokens do not match".into())
     }
 
+    /// Return an Integer token value.
+    ///
+    /// # Errors
+    ///
+    /// This method errors if the current token does not match with the eaten token or if the
+    /// token value cannot be parsed to a `u32`.
+    fn term(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
+        let token = self.current_token.clone();
+        self.eat(TokenType::Integer)?;
+
+        token
+            .value
+            .parse()
+            .map_err(|e| format!("could not parse: {}", e).into())
+    }
+
     /// Evaluate the expression.
     ///
     /// # Errors
     ///
-    /// This method errors if the input cannot be tokenized or if we could not "parse" the token
-    /// values.
+    /// This method errors if the input cannot be tokenized, if we could not "parse" the token
+    /// values or if the arithmetic operation on the result causes it to overflow/underflow.
     fn expr(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
         // set current token to be the first token taken from the the input
         self.current_token = self.get_next_token()?;
 
-        // the next token should be an integer
-        let left: u32 = self.current_token.as_ref().value.parse()?;
-        self.eat(TokenType::Integer)?;
-
-        // the next token should be a '+' or '-' token
-        let op = self.current_token.clone();
-        match op.kind {
-            TokenType::Plus => self.eat(TokenType::Plus)?,
-            TokenType::Minus => self.eat(TokenType::Minus)?,
-            _ => {}
+        let mut result = self.term()?;
+        while let TokenType::Plus | TokenType::Minus = self.current_token.kind {
+            let token = self.current_token.as_ref();
+            match token.kind {
+                TokenType::Plus => {
+                    self.eat(TokenType::Plus)?;
+                    result = result + self.term()?;
+                }
+                TokenType::Minus => {
+                    self.eat(TokenType::Minus)?;
+                    result = result - self.term()?;
+                }
+                _ => {}
+            }
         }
 
-        // the next token should be an integer
-        let right: u32 = self.current_token.as_ref().value.parse()?;
-        self.eat(TokenType::Integer)?;
-
-        match &op.kind {
-            TokenType::Plus => Ok(left + right),
-            TokenType::Minus => Ok(left - right),
-            op => Err(format!("Operation not allowed: {:?}", op).into()),
-        }
+        Ok(result)
     }
 }
