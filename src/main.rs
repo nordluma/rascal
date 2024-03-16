@@ -112,27 +112,27 @@ impl<'a> Interpreter<'a> {
     /// This method errors if the character does not match any of the defined token types.
     fn get_next_token(&mut self) -> Result<Token, Box<dyn std::error::Error>> {
         while self.current_char != '\0' {
-            if self.current_char.is_whitespace() {
-                self.skip_whitespace();
-                continue;
+            match self.current_char {
+                c if c.is_whitespace() => {
+                    self.skip_whitespace();
+                    continue;
+                }
+                c if c.is_ascii_digit() => {
+                    return Ok(Token::new(TokenType::Integer, self.integer()));
+                }
+                '+' => {
+                    self.advance();
+                    return Ok(Token::new(TokenType::Plus, '+'.to_string()));
+                }
+                '-' => {
+                    self.advance();
+                    return Ok(Token::new(TokenType::Minus, '-'.to_string()));
+                }
+                c => {
+                    // TODO: improve error types
+                    return Err(format!("Error parsing input: {}", c).into());
+                }
             }
-
-            if self.current_char.is_ascii_digit() {
-                return Ok(Token::new(TokenType::Integer, self.integer()));
-            }
-
-            if self.current_char == '+' {
-                self.advance();
-                return Ok(Token::new(TokenType::Plus, '+'.to_string()));
-            }
-
-            if self.current_char == '-' {
-                self.advance();
-                return Ok(Token::new(TokenType::Minus, '-'.to_string()));
-            }
-
-            // TODO: improve error types
-            return Err(format!("Error parsing input: {}", self.current_char).into());
         }
 
         Ok(Token::new(TokenType::Eof, '\0'.to_string()))
