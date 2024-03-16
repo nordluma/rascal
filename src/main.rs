@@ -31,7 +31,6 @@ enum TokenType {
     Mul,
     Div,
     Eof,
-    None,
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +123,14 @@ impl<'a> Lexer<'a> {
                 c if c.is_ascii_digit() => {
                     return Ok(Token::new(TokenType::Integer, self.integer()));
                 }
+                '+' => {
+                    self.advance();
+                    return Ok(Token::new(TokenType::Plus, '+'));
+                }
+                '-' => {
+                    self.advance();
+                    return Ok(Token::new(TokenType::Minus, '-'));
+                }
                 '*' => {
                     self.advance();
                     return Ok(Token::new(TokenType::Mul, '*'));
@@ -174,6 +181,8 @@ impl<'a> Interpreter<'a> {
         Err("Invalid Syntax".into())
     }
 
+    /// `factor : INTEGER`
+    ///
     /// Return an `Integer` token value.
     ///
     /// # Errors
@@ -190,17 +199,17 @@ impl<'a> Interpreter<'a> {
             .map_err(|e| format!("Could not parse: {} - Error: {}", token, e).into())
     }
 
-    /// Evaluate the expression.
+    /// `term : factor ((MUL | DIV) factor)*`
+    ///
+    /// Return result of multiplication or division op.
     ///
     /// # Errors
     ///
-    /// This method errors if the input cannot be tokenized, if we could not "parse" the token
-    /// values or if the arithmetic operation on the result causes it to overflow/underflow.
-    fn expr(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
+    /// This method errors if the arithmetic operation causes the `result` to overflow/underflow.
+    fn term(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
         let mut result = self.factor()?;
-
         while let TokenType::Mul | TokenType::Div = self.current_token.kind {
-            let token = self.current_token.as_ref();
+            let token = self.current_token.clone();
             match token.kind {
                 TokenType::Mul => {
                     self.eat(TokenType::Mul)?;
@@ -209,6 +218,39 @@ impl<'a> Interpreter<'a> {
                 TokenType::Div => {
                     self.eat(TokenType::Div)?;
                     result /= self.factor()?;
+                }
+                _ => {}
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Arithmetic expression parser / interpreter.
+    ///
+    /// # Supported grammar
+    ///
+    /// `expr : term ((PLUS | MINUS) term)*`
+    /// `term : factor ((MUL | DIV) factor)*`
+    /// `factor : INTEGER`
+    ///
+    /// # Errors
+    ///
+    /// This method errors if the input cannot be tokenized, if we could not "parse" the token
+    /// values or if the arithmetic operation on the result causes it to overflow/underflow.
+    fn expr(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
+        let mut result = self.term()?;
+
+        while let TokenType::Plus | TokenType::Minus = self.current_token.kind {
+            let token = self.current_token.as_ref();
+            match token.kind {
+                TokenType::Plus => {
+                    self.eat(TokenType::Plus)?;
+                    result += self.term()?;
+                }
+                TokenType::Minus => {
+                    self.eat(TokenType::Minus)?;
+                    result -= self.term()?;
                 }
                 _ => {}
             }
