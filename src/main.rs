@@ -30,6 +30,8 @@ enum TokenType {
     Minus,
     Mul,
     Div,
+    LParen,
+    RParen,
     Eof,
 }
 
@@ -137,6 +139,14 @@ impl<'a> Lexer<'a> {
                     self.advance();
                     return Ok(Token::new(TokenType::Div, '/'));
                 }
+                '(' => {
+                    self.advance();
+                    return Ok(Token::new(TokenType::LParen, '('));
+                }
+                ')' => {
+                    self.advance();
+                    return Ok(Token::new(TokenType::RParen, ')'));
+                }
                 c => {
                     // TODO: improve error types
                     return Err(format!("Error parsing input: {}", c).into());
@@ -179,7 +189,7 @@ impl<'a> Interpreter<'a> {
         Err("Invalid Syntax".into())
     }
 
-    /// `factor : INTEGER`
+    /// `factor : INTEGER | LPAREN expr RPAREN`
     ///
     /// Return an `Integer` token value.
     ///
@@ -189,12 +199,20 @@ impl<'a> Interpreter<'a> {
     /// token value cannot be parsed to a `u32`.
     fn factor(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
         let token = self.current_token.clone();
-        self.eat(TokenType::Integer)?;
+        if token.kind == TokenType::Integer {
+            self.eat(TokenType::Integer)?;
+            return token
+                .value
+                .parse()
+                .map_err(|e| format!("Could not parse: {} - Error: {}", token, e).into());
+        }
 
-        token
-            .value
-            .parse()
-            .map_err(|e| format!("Could not parse: {} - Error: {}", token, e).into())
+        // We're expecting the token to be a `LPAREN`
+        self.eat(TokenType::LParen)?;
+        let result = self.expr()?;
+        self.eat(TokenType::RParen)?;
+
+        Ok(result)
     }
 
     /// `term : factor ((MUL | DIV) factor)*`
@@ -217,7 +235,7 @@ impl<'a> Interpreter<'a> {
                     self.eat(TokenType::Div)?;
                     result /= self.factor()?;
                 }
-                _ => {}
+                _ => unreachable!(),
             }
         }
 
@@ -230,7 +248,7 @@ impl<'a> Interpreter<'a> {
     ///
     /// `expr : term ((PLUS | MINUS) term)*`
     /// `term : factor ((MUL | DIV) factor)*`
-    /// `factor : INTEGER`
+    /// `factor : INTEGER | LPAREN expr RPAREN`
     ///
     /// # Errors
     ///
@@ -250,7 +268,7 @@ impl<'a> Interpreter<'a> {
                     self.eat(TokenType::Minus)?;
                     result -= self.term()?;
                 }
-                _ => {}
+                _ => unreachable!(),
             }
         }
 
