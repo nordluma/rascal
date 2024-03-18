@@ -103,8 +103,6 @@ impl<'a> Lexer<'a> {
             self.advance();
         }
 
-        // we have previously checked that the chars are ascii digits so it
-        // should be safe to unwrap
         result
     }
 
