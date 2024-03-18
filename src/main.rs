@@ -13,10 +13,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let text = buffer.trim_end().to_string().chars().collect::<Vec<_>>();
         let lexer = Lexer::new(&text);
-        let mut interpreter = Interpreter::new(lexer)?;
+        let mut interpreter = Parser::new(lexer)?;
         let result = interpreter.expr()?;
 
-        println!("{}", result);
+        println!("{:?}", result);
         buffer.clear();
     }
 
@@ -63,6 +63,21 @@ impl Token {
             value: value.to_string(),
         }
     }
+}
+
+#[derive(Debug)]
+enum AstNode {
+    /// Node which can represent all four binary operators.
+    BinOp {
+        lhs: Box<AstNode>,
+        token: Token,
+        op: String,
+        rhs: Box<AstNode>,
+    },
+    Number {
+        token: Token,
+        value: String,
+    },
 }
 
 struct Lexer<'a> {
@@ -158,12 +173,12 @@ impl<'a> Lexer<'a> {
     }
 }
 
-struct Interpreter<'a> {
+struct Parser<'a> {
     lexer: Lexer<'a>,
     current_token: Token,
 }
 
-impl<'a> Interpreter<'a> {
+impl<'a> Parser<'a> {
     fn new(mut lexer: Lexer<'a>) -> Result<Self, Box<dyn std::error::Error>> {
         let current_token = lexer.get_next_token()?;
 
@@ -197,22 +212,22 @@ impl<'a> Interpreter<'a> {
     ///
     /// This method errors if the current token does not match with the eaten token or if the
     /// token value cannot be parsed to a `u32`.
-    fn factor(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
+    fn factor(&mut self) -> Result<AstNode, Box<dyn std::error::Error>> {
         let token = self.current_token.clone();
         if token.kind == TokenType::Integer {
             self.eat(TokenType::Integer)?;
-            return token
-                .value
-                .parse()
-                .map_err(|e| format!("Could not parse: {} - Error: {}", token, e).into());
+            return Ok(AstNode::Number {
+                token: token.clone(),
+                value: token.value,
+            });
         }
 
         // We're expecting the token to be a `LPAREN`
         self.eat(TokenType::LParen)?;
-        let result = self.expr()?;
+        let node = self.expr()?;
         self.eat(TokenType::RParen)?;
 
-        Ok(result)
+        Ok(node)
     }
 
     /// `term : factor ((MUL | DIV) factor)*`
@@ -222,24 +237,29 @@ impl<'a> Interpreter<'a> {
     /// # Errors
     ///
     /// This method errors if the arithmetic operation causes the `result` to overflow/underflow.
-    fn term(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
-        let mut result = self.factor()?;
+    fn term(&mut self) -> Result<AstNode, Box<dyn std::error::Error>> {
+        let mut node = self.factor()?;
         while let TokenType::Mul | TokenType::Div = self.current_token.kind {
             let token = self.current_token.clone();
             match token.kind {
                 TokenType::Mul => {
                     self.eat(TokenType::Mul)?;
-                    result *= self.factor()?;
                 }
                 TokenType::Div => {
                     self.eat(TokenType::Div)?;
-                    result /= self.factor()?;
                 }
                 _ => unreachable!(),
             }
+
+            node = AstNode::BinOp {
+                lhs: Box::new(node),
+                token: token.clone(),
+                op: token.value,
+                rhs: Box::new(self.factor()?),
+            }
         }
 
-        Ok(result)
+        Ok(node)
     }
 
     /// Arithmetic expression parser / interpreter.
@@ -254,24 +274,29 @@ impl<'a> Interpreter<'a> {
     ///
     /// This method errors if the input cannot be tokenized, if we could not "parse" the token
     /// values or if the arithmetic operation on the result causes it to overflow/underflow.
-    fn expr(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
-        let mut result = self.term()?;
+    fn expr(&mut self) -> Result<AstNode, Box<dyn std::error::Error>> {
+        let mut node = self.term()?;
 
         while let TokenType::Plus | TokenType::Minus = self.current_token.kind {
-            let token = self.current_token.as_ref();
+            let token = self.current_token.clone();
             match token.kind {
                 TokenType::Plus => {
                     self.eat(TokenType::Plus)?;
-                    result += self.term()?;
                 }
                 TokenType::Minus => {
                     self.eat(TokenType::Minus)?;
-                    result -= self.term()?;
                 }
                 _ => unreachable!(),
             }
+
+            node = AstNode::BinOp {
+                lhs: Box::new(node),
+                token: token.clone(),
+                op: token.value,
+                rhs: Box::new(self.term()?),
+            }
         }
 
-        Ok(result)
+        Ok(node)
     }
 }
