@@ -25,14 +25,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 trait Visitor {
-    fn visit(&self, node: &AstNode) -> Result<isize, std::num::ParseIntError> {
+    fn visit(&self, node: &AstNode) -> isize {
         match node {
-            AstNode::BinOp { .. } => self.visit_binop(node),
-            AstNode::Number(_) => self.visit_num(node),
+            AstNode::BinOps(bin_op) => self.visit_binop(bin_op),
+            AstNode::Number(num) => self.visit_num(num),
         }
     }
-    fn visit_num(&self, node: &AstNode) -> Result<isize, std::num::ParseIntError>;
-    fn visit_binop(&self, node: &AstNode) -> Result<isize, std::num::ParseIntError>;
+    fn visit_num(&self, node: &Num) -> isize;
+    fn visit_binop(&self, node: &BinOp) -> isize;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,12 +80,25 @@ impl Token {
 #[derive(Debug, Clone)]
 enum AstNode {
     /// Node which can represent all four binary operators.
-    BinOp {
-        lhs: Box<AstNode>,
-        token: Token,
-        rhs: Box<AstNode>,
-    },
-    Number(String),
+    BinOps(BinOp),
+    Number(Num),
+}
+
+#[derive(Debug, Clone)]
+struct BinOp {
+    lhs: Box<AstNode>,
+    token: Token,
+    rhs: Box<AstNode>,
+}
+
+#[derive(Debug, Clone)]
+struct Num(isize);
+
+impl std::ops::Deref for Num {
+    type Target = isize;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 struct Lexer<'a> {
@@ -224,7 +237,7 @@ impl<'a> Parser<'a> {
         let token = self.current_token.clone();
         if token.kind == TokenType::Integer {
             self.eat(TokenType::Integer)?;
-            return Ok(AstNode::Number(token.value));
+            return Ok(AstNode::Number(Num(token.value.parse()?)));
         }
 
         // We're expecting the token to be a `LPAREN`
@@ -244,6 +257,7 @@ impl<'a> Parser<'a> {
     /// This method errors if the arithmetic operation causes the `result` to overflow/underflow.
     fn term(&mut self) -> Result<AstNode, Box<dyn std::error::Error>> {
         let mut node = self.factor()?;
+
         while let TokenType::Mul | TokenType::Div = self.current_token.kind {
             let token = self.current_token.clone();
             match token.kind {
@@ -256,11 +270,11 @@ impl<'a> Parser<'a> {
                 _ => unreachable!(),
             }
 
-            node = AstNode::BinOp {
+            node = AstNode::BinOps(BinOp {
                 lhs: Box::new(node),
                 token: token.clone(),
                 rhs: Box::new(self.factor()?),
-            }
+            })
         }
 
         Ok(node)
@@ -293,11 +307,11 @@ impl<'a> Parser<'a> {
                 _ => unreachable!(),
             }
 
-            node = AstNode::BinOp {
+            node = AstNode::BinOps(BinOp {
                 lhs: Box::new(node),
                 token: token.clone(),
-                rhs: Box::new(self.term()?),
-            }
+                rhs: Box::new(self.factor()?),
+            })
         }
 
         Ok(node)
@@ -313,33 +327,18 @@ struct Interpreter<'a> {
 }
 
 impl<'a> Visitor for Interpreter<'a> {
-    fn visit_num(&self, node: &AstNode) -> Result<isize, std::num::ParseIntError> {
-        if let AstNode::Number(value) = node {
-            return value.parse();
-        };
-
-        // we should not visit other type of nodes
-        panic!()
+    fn visit_num(&self, node: &Num) -> isize {
+        **node
     }
 
-    fn visit_binop(&self, node: &AstNode) -> Result<isize, std::num::ParseIntError> {
-        if let AstNode::BinOp {
-            ref lhs,
-            token,
-            ref rhs,
-        } = node
-        {
-            match token.kind {
-                TokenType::Plus => return Ok(self.visit(lhs)? + self.visit(rhs)?),
-                TokenType::Minus => return Ok(self.visit(lhs)? - self.visit(rhs)?),
-                TokenType::Mul => return Ok(self.visit(lhs)? * self.visit(rhs)?),
-                TokenType::Div => return Ok(self.visit(lhs)? / self.visit(rhs)?),
-                _ => unreachable!(),
-            };
-        };
-
-        // we should not visit other type of nodes
-        panic!("cause: {:?}", node)
+    fn visit_binop(&self, node: &BinOp) -> isize {
+        match node.token.kind {
+            TokenType::Plus => self.visit(&node.lhs) + self.visit(&node.rhs),
+            TokenType::Minus => self.visit(&node.lhs) - self.visit(&node.rhs),
+            TokenType::Mul => self.visit(&node.lhs) * self.visit(&node.rhs),
+            TokenType::Div => self.visit(&node.lhs) / self.visit(&node.rhs),
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -350,6 +349,6 @@ impl<'a> Interpreter<'a> {
 
     fn interpret(&mut self) -> Result<isize, Box<dyn std::error::Error>> {
         let tree = self.parser.parse()?;
-        self.visit(&tree).map_err(|e| e.into())
+        Ok(self.visit(&tree))
     }
 }
