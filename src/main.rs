@@ -332,11 +332,14 @@ impl<'a> Visitor for Interpreter<'a> {
     }
 
     fn visit_binop(&self, node: &BinOp) -> isize {
+        let lhs = self.visit(&node.lhs);
+        let rhs = self.visit(&node.rhs);
+
         match node.token.kind {
-            TokenType::Plus => self.visit(&node.lhs) + self.visit(&node.rhs),
-            TokenType::Minus => self.visit(&node.lhs) - self.visit(&node.rhs),
-            TokenType::Mul => self.visit(&node.lhs) * self.visit(&node.rhs),
-            TokenType::Div => self.visit(&node.lhs) / self.visit(&node.rhs),
+            TokenType::Plus => lhs + rhs,
+            TokenType::Minus => lhs - rhs,
+            TokenType::Mul => lhs * rhs,
+            TokenType::Div => lhs / rhs,
             _ => unreachable!(),
         }
     }
