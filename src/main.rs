@@ -13,14 +13,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let text = buffer.trim_end().to_string().chars().collect::<Vec<_>>();
         let lexer = Lexer::new(&text);
-        let mut interpreter = Parser::new(lexer)?;
-        let result = interpreter.expr()?;
+        let parser = Parser::new(lexer)?;
+        let mut interpreter = Interpreter::new(parser);
+        let result = interpreter.interpret()?;
 
         println!("{:?}", result);
         buffer.clear();
     }
 
     Ok(())
+}
+
+trait Visitor {
+    fn visit(&self, node: &AstNode) -> Result<isize, std::num::ParseIntError> {
+        match node {
+            AstNode::BinOp { .. } => self.visit_binop(node),
+            AstNode::Number(_) => self.visit_num(node),
+        }
+    }
+    fn visit_num(&self, node: &AstNode) -> Result<isize, std::num::ParseIntError>;
+    fn visit_binop(&self, node: &AstNode) -> Result<isize, std::num::ParseIntError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,19 +77,15 @@ impl Token {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum AstNode {
     /// Node which can represent all four binary operators.
     BinOp {
         lhs: Box<AstNode>,
         token: Token,
-        op: String,
         rhs: Box<AstNode>,
     },
-    Number {
-        token: Token,
-        value: String,
-    },
+    Number(String),
 }
 
 struct Lexer<'a> {
@@ -216,10 +224,7 @@ impl<'a> Parser<'a> {
         let token = self.current_token.clone();
         if token.kind == TokenType::Integer {
             self.eat(TokenType::Integer)?;
-            return Ok(AstNode::Number {
-                token: token.clone(),
-                value: token.value,
-            });
+            return Ok(AstNode::Number(token.value));
         }
 
         // We're expecting the token to be a `LPAREN`
@@ -254,7 +259,6 @@ impl<'a> Parser<'a> {
             node = AstNode::BinOp {
                 lhs: Box::new(node),
                 token: token.clone(),
-                op: token.value,
                 rhs: Box::new(self.factor()?),
             }
         }
@@ -292,11 +296,60 @@ impl<'a> Parser<'a> {
             node = AstNode::BinOp {
                 lhs: Box::new(node),
                 token: token.clone(),
-                op: token.value,
                 rhs: Box::new(self.term()?),
             }
         }
 
         Ok(node)
+    }
+
+    fn parse(&mut self) -> Result<AstNode, Box<dyn std::error::Error>> {
+        self.expr()
+    }
+}
+
+struct Interpreter<'a> {
+    parser: Parser<'a>,
+}
+
+impl<'a> Visitor for Interpreter<'a> {
+    fn visit_num(&self, node: &AstNode) -> Result<isize, std::num::ParseIntError> {
+        if let AstNode::Number(value) = node {
+            return value.parse();
+        };
+
+        // we should not visit other type of nodes
+        panic!()
+    }
+
+    fn visit_binop(&self, node: &AstNode) -> Result<isize, std::num::ParseIntError> {
+        if let AstNode::BinOp {
+            ref lhs,
+            token,
+            ref rhs,
+        } = node
+        {
+            match token.kind {
+                TokenType::Plus => return Ok(self.visit(lhs)? + self.visit(rhs)?),
+                TokenType::Minus => return Ok(self.visit(lhs)? - self.visit(rhs)?),
+                TokenType::Mul => return Ok(self.visit(lhs)? * self.visit(rhs)?),
+                TokenType::Div => return Ok(self.visit(lhs)? / self.visit(rhs)?),
+                _ => unreachable!(),
+            };
+        };
+
+        // we should not visit other type of nodes
+        panic!("cause: {:?}", node)
+    }
+}
+
+impl<'a> Interpreter<'a> {
+    fn new(parser: Parser<'a>) -> Self {
+        Self { parser }
+    }
+
+    fn interpret(&mut self) -> Result<isize, Box<dyn std::error::Error>> {
+        let tree = self.parser.parse()?;
+        self.visit(&tree).map_err(|e| e.into())
     }
 }
