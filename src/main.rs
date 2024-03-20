@@ -191,6 +191,15 @@ impl<'a> Lexer<'a> {
         result
     }
 
+    /// Get the next `char` without consuming it.
+    fn peek(&self) -> Option<char> {
+        let peek_pos = self.pos + 1;
+        match peek_pos > self.text.len() - 1 {
+            true => None,
+            false => Some(self.text[peek_pos]),
+        }
+    }
+
     /// The method is responsible for breaking sentences apart and return one token at a time.
     ///
     /// # Errors
