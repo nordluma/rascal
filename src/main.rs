@@ -364,7 +364,7 @@ impl<'a> Visitor for Interpreter<'a> {
 
     fn visit_unaryop(&self, node: &Unary) -> isize {
         match node.token.kind {
-            TokenType::Plus => return self.visit(&node.expr),
+            TokenType::Plus => self.visit(&node.expr),
             TokenType::Minus => -self.visit(&node.expr),
             _ => unreachable!(),
         }
