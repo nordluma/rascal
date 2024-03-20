@@ -1,4 +1,6 @@
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+fn main() -> Result<()> {
     let mut buffer = String::new();
 
     loop {
@@ -159,7 +161,7 @@ impl<'a> Lexer<'a> {
     /// # Errors
     ///
     /// This method errors if the character does not match any of the defined token types.
-    fn get_next_token(&mut self) -> Result<Token, Box<dyn std::error::Error>> {
+    fn get_next_token(&mut self) -> Result<Token> {
         while self.current_char != '\0' {
             match self.current_char {
                 c if c.is_whitespace() => {
@@ -210,7 +212,7 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn new(mut lexer: Lexer<'a>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn new(mut lexer: Lexer<'a>) -> Result<Self> {
         let current_token = lexer.get_next_token()?;
 
         Ok(Self {
@@ -225,7 +227,7 @@ impl<'a> Parser<'a> {
     /// # Errors
     ///
     /// If the tokens do not match.
-    fn eat(&mut self, token_type: TokenType) -> Result<(), Box<dyn std::error::Error>> {
+    fn eat(&mut self, token_type: TokenType) -> Result<()> {
         if self.current_token.kind == token_type {
             self.current_token = self.lexer.get_next_token()?;
 
@@ -242,7 +244,7 @@ impl<'a> Parser<'a> {
     /// # Errors
     ///
     /// This method errors if the current token does not match with the eaten token.
-    fn factor(&mut self) -> Result<AstNode, Box<dyn std::error::Error>> {
+    fn factor(&mut self) -> Result<AstNode> {
         let token = self.current_token.clone();
         match token.kind {
             TokenType::Plus => {
@@ -284,7 +286,7 @@ impl<'a> Parser<'a> {
     /// # Errors
     ///
     /// This method errors if the arithmetic operation causes the `result` to overflow/underflow.
-    fn term(&mut self) -> Result<AstNode, Box<dyn std::error::Error>> {
+    fn term(&mut self) -> Result<AstNode> {
         let mut node = self.factor()?;
 
         while let TokenType::Mul | TokenType::Div = self.current_token.kind {
@@ -321,7 +323,7 @@ impl<'a> Parser<'a> {
     ///
     /// This method errors if the input cannot be tokenized, if we could not "parse" the token
     /// values or if the arithmetic operation on the result causes it to overflow/underflow.
-    fn expr(&mut self) -> Result<AstNode, Box<dyn std::error::Error>> {
+    fn expr(&mut self) -> Result<AstNode> {
         let mut node = self.term()?;
 
         while let TokenType::Plus | TokenType::Minus = self.current_token.kind {
@@ -346,7 +348,7 @@ impl<'a> Parser<'a> {
         Ok(node)
     }
 
-    fn parse(&mut self) -> Result<AstNode, Box<dyn std::error::Error>> {
+    fn parse(&mut self) -> Result<AstNode> {
         self.expr()
     }
 }
@@ -387,7 +389,7 @@ impl<'a> Interpreter<'a> {
         Self { parser }
     }
 
-    fn interpret(&mut self) -> Result<isize, Box<dyn std::error::Error>> {
+    fn interpret(&mut self) -> Result<isize> {
         let tree = self.parser.parse()?;
         Ok(self.visit(&tree))
     }
