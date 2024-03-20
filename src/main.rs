@@ -88,12 +88,15 @@ trait Visitor {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum TokenType {
-    ID,
     Integer,
     Plus,
     Minus,
     Mul,
     Div,
+    ID,
+    Assign,
+    Semi,
+    Dot,
     Begin,
     End,
     LParen,
@@ -242,6 +245,21 @@ impl<'a> Lexer<'a> {
                 }
                 c if c.is_ascii_digit() => {
                     return Ok(Token::new(TokenType::Integer, self.integer()));
+                }
+                c if c.is_alphanumeric() => return Ok(self.id()),
+                c if c == ':' && self.peek() == Some('=') => {
+                    self.advance();
+                    self.advance();
+
+                    return Ok(Token::new(TokenType::Assign, ":="));
+                }
+                ';' => {
+                    self.advance();
+                    return Ok(Token::new(TokenType::Semi, ';'));
+                }
+                '.' => {
+                    self.advance();
+                    return Ok(Token::new(TokenType::Dot, '.'));
                 }
                 '+' => {
                     self.advance();
