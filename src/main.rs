@@ -88,6 +88,7 @@ trait Visitor {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum TokenType {
+    ID,
     Integer,
     Plus,
     Minus,
@@ -202,6 +203,20 @@ impl<'a> Lexer<'a> {
         }
 
         result
+    }
+
+    /// Handle identifiers and reserved keywords
+    fn id(&mut self) -> Token {
+        let mut result = String::new();
+        while self.current_char != '\0' && self.current_char.is_alphanumeric() {
+            result.push(self.current_char);
+            self.advance();
+        }
+
+        RESERVED_KEYWORDS
+            .get(result.as_str())
+            .unwrap_or(&Token::new(TokenType::ID, result.clone()))
+            .to_owned()
     }
 
     /// Get the next `char` without consuming it.
