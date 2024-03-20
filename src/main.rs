@@ -317,7 +317,7 @@ impl<'a> Parser<'a> {
     ///
     /// `expr : term ((PLUS | MINUS) term)*`
     /// `term : factor ((MUL | DIV) factor)*`
-    /// `factor : INTEGER | LPAREN expr RPAREN`
+    /// `factor : (PLUS | MINUS ) factor | INTEGER | LPAREN expr RPAREN`
     ///
     /// # Errors
     ///
