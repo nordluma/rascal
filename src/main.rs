@@ -33,6 +33,17 @@
 //! variable : ID
 //! ```
 
+use std::collections::HashMap;
+
+use once_cell::sync::Lazy;
+
+static RESERVED_KEYWORDS: Lazy<HashMap<&str, Token>> = Lazy::new(|| {
+    HashMap::from([
+        ("BEGIN", Token::new(TokenType::Begin, "BEGIN")),
+        ("END", Token::new(TokenType::End, "END")),
+    ])
+});
+
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn main() -> Result<()> {
@@ -82,6 +93,8 @@ enum TokenType {
     Minus,
     Mul,
     Div,
+    Begin,
+    End,
     LParen,
     RParen,
     Eof,
