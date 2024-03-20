@@ -104,7 +104,7 @@ enum TokenType {
     Eof,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Token {
     kind: TokenType,
     value: String,
@@ -487,7 +487,7 @@ impl<'a> Interpreter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Interpreter, Lexer, Parser, Result};
+    use crate::{Interpreter, Lexer, Parser, Result, Token, TokenType};
 
     fn interpret(input: String) -> Result<isize> {
         let text = input.trim_end().to_string().chars().collect::<Vec<_>>();
@@ -511,5 +511,46 @@ mod tests {
 
         let input = String::from("5 - - - + - (3 + 4) - +2");
         assert_eq!(interpret(input).unwrap(), 10);
+    }
+
+    #[test]
+    fn returns_program_tokens() {
+        let input = String::from("BEGIN a := 2; END.")
+            .chars()
+            .collect::<Vec<_>>();
+        let mut lexer = Lexer::new(&input);
+
+        assert_eq!(
+            lexer.get_next_token().unwrap(),
+            Token::new(TokenType::Begin, "BEGIN")
+        );
+        assert_eq!(
+            lexer.get_next_token().unwrap(),
+            Token::new(TokenType::ID, "a")
+        );
+        assert_eq!(
+            lexer.get_next_token().unwrap(),
+            Token::new(TokenType::Assign, ":=")
+        );
+        assert_eq!(
+            lexer.get_next_token().unwrap(),
+            Token::new(TokenType::Integer, "2")
+        );
+        assert_eq!(
+            lexer.get_next_token().unwrap(),
+            Token::new(TokenType::Semi, ";")
+        );
+        assert_eq!(
+            lexer.get_next_token().unwrap(),
+            Token::new(TokenType::End, "END")
+        );
+        assert_eq!(
+            lexer.get_next_token().unwrap(),
+            Token::new(TokenType::Dot, '.')
+        );
+        assert_eq!(
+            lexer.get_next_token().unwrap(),
+            Token::new(TokenType::Eof, '\0')
+        );
     }
 }
