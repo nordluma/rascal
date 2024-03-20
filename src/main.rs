@@ -394,3 +394,32 @@ impl<'a> Interpreter<'a> {
         Ok(self.visit(&tree))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Interpreter, Lexer, Parser, Result};
+
+    fn interpret(input: String) -> Result<isize> {
+        let text = input.trim_end().to_string().chars().collect::<Vec<_>>();
+        let lexer = Lexer::new(&text);
+        let parser = Parser::new(lexer)?;
+        let mut interpreter = Interpreter::new(parser);
+
+        interpreter.interpret()
+    }
+
+    #[test]
+    fn unary_ops() {
+        let input = String::from("- 3");
+        assert_eq!(interpret(input).unwrap(), -3);
+
+        let input = String::from("+ 3");
+        assert_eq!(interpret(input).unwrap(), 3);
+
+        let input = String::from("5 - - - + - 3");
+        assert_eq!(interpret(input).unwrap(), 8);
+
+        let input = String::from("5 - - - + - (3 + 4) - +2");
+        assert_eq!(interpret(input).unwrap(), 10);
+    }
+}
