@@ -27,11 +27,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 trait Visitor {
     fn visit(&self, node: &AstNode) -> isize {
         match node {
+            AstNode::UnaryOp(unary) => self.visit_unaryop(unary),
             AstNode::BinOps(bin_op) => self.visit_binop(bin_op),
             AstNode::Number(num) => self.visit_num(num),
         }
     }
+
     fn visit_num(&self, node: &Num) -> isize;
+    fn visit_unaryop(&self, node: &Unary) -> isize;
     fn visit_binop(&self, node: &BinOp) -> isize;
 }
 
@@ -81,6 +84,7 @@ impl Token {
 enum AstNode {
     /// Node which can represent all four binary operators.
     BinOps(BinOp),
+    UnaryOp(Unary),
     Number(Num),
 }
 
@@ -89,6 +93,12 @@ struct BinOp {
     lhs: Box<AstNode>,
     token: Token,
     rhs: Box<AstNode>,
+}
+
+#[derive(Debug, Clone)]
+struct Unary {
+    token: Token,
+    expr: Box<AstNode>,
 }
 
 #[derive(Debug, Clone)]
@@ -225,27 +235,46 @@ impl<'a> Parser<'a> {
         Err("Invalid Syntax".into())
     }
 
-    /// `factor : INTEGER | LPAREN expr RPAREN`
+    /// `factor : (PLUS | MINUS ) factor | INTEGER | LPAREN expr RPAREN`
     ///
     /// Return an `Integer` token value.
     ///
     /// # Errors
     ///
-    /// This method errors if the current token does not match with the eaten token or if the
-    /// token value cannot be parsed to a `u32`.
+    /// This method errors if the current token does not match with the eaten token.
     fn factor(&mut self) -> Result<AstNode, Box<dyn std::error::Error>> {
         let token = self.current_token.clone();
-        if token.kind == TokenType::Integer {
-            self.eat(TokenType::Integer)?;
-            return Ok(AstNode::Number(Num(token.value.parse()?)));
+        match token.kind {
+            TokenType::Plus => {
+                self.eat(TokenType::Plus)?;
+
+                Ok(AstNode::UnaryOp(Unary {
+                    token,
+                    expr: Box::new(self.factor()?),
+                }))
+            }
+            TokenType::Minus => {
+                self.eat(TokenType::Minus)?;
+
+                Ok(AstNode::UnaryOp(Unary {
+                    token,
+                    expr: Box::new(self.factor()?),
+                }))
+            }
+            TokenType::Integer => {
+                self.eat(TokenType::Integer)?;
+
+                Ok(AstNode::Number(Num(token.value.parse()?)))
+            }
+            TokenType::LParen => {
+                self.eat(TokenType::LParen)?;
+                let node = self.expr()?;
+                self.eat(TokenType::RParen)?;
+
+                Ok(node)
+            }
+            _ => todo!(),
         }
-
-        // We're expecting the token to be a `LPAREN`
-        self.eat(TokenType::LParen)?;
-        let node = self.expr()?;
-        self.eat(TokenType::RParen)?;
-
-        Ok(node)
     }
 
     /// `term : factor ((MUL | DIV) factor)*`
@@ -328,7 +357,15 @@ struct Interpreter<'a> {
 
 impl<'a> Visitor for Interpreter<'a> {
     fn visit_num(&self, node: &Num) -> isize {
-        **node
+        **node // this feels pretty dumb...
+    }
+
+    fn visit_unaryop(&self, node: &Unary) -> isize {
+        match node.token.kind {
+            TokenType::Plus => return self.visit(&node.expr),
+            TokenType::Minus => -self.visit(&node.expr),
+            _ => unreachable!(),
+        }
     }
 
     fn visit_binop(&self, node: &BinOp) -> isize {
