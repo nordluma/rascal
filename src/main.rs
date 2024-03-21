@@ -78,19 +78,26 @@ trait Visitor {
             AstNode::UnaryOp(unary) => self.visit_unaryop(unary),
             AstNode::BinOps(bin_op) => self.visit_binop(bin_op),
             AstNode::Number(num) => self.visit_num(num),
-            AstNode::Compound(_) => todo!(),
-            AstNode::Assign(_) => todo!(),
-            AstNode::Var(_) => todo!(),
-            AstNode::NoOp => todo!(),
+            AstNode::Compound(children) => self.visit_compound(children),
+            AstNode::Assign(assign) => self.visit_assign(assign),
+            AstNode::Var(token) => self.visit_var(token),
+            AstNode::NoOp => self.visit_noop(),
         }
     }
 
     fn visit_num(&self, node: &Num) -> isize;
     fn visit_unaryop(&self, node: &Unary) -> isize;
     fn visit_binop(&self, node: &BinOp) -> isize;
+    fn visit_compound(&self, children: &Vec<AstNode>) -> isize;
+    fn visit_assign(&self, node: &Assign) -> isize;
+    fn visit_var(&self, node: &Token) -> isize;
+
+    fn visit_noop(&self) -> isize {
+        0
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum TokenType {
     Integer,
     Plus,
@@ -108,7 +115,7 @@ enum TokenType {
     Eof,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Token {
     kind: TokenType,
     value: String,
@@ -138,7 +145,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum AstNode {
     /// Node which can represent all four binary operators.
     BinOps(BinOp),
@@ -150,20 +157,20 @@ enum AstNode {
     NoOp,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct BinOp {
     lhs: Box<AstNode>,
     token: Token,
     rhs: Box<AstNode>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Unary {
     token: Token,
     expr: Box<AstNode>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Num(isize);
 
 impl std::ops::Deref for Num {
@@ -173,7 +180,7 @@ impl std::ops::Deref for Num {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Assign {
     left: Box<AstNode>,
     token: Token,
@@ -356,7 +363,7 @@ impl<'a> Parser<'a> {
         let nodes = self.statement_list()?;
         self.eat(TokenType::End)?;
 
-        Ok(AstNode::Compound(Vec::from(nodes)))
+        Ok(AstNode::Compound(nodes))
     }
 
     /// `statement_list : statement | statement SEMI statement_list`
@@ -407,46 +414,26 @@ impl<'a> Parser<'a> {
         Ok(AstNode::NoOp)
     }
 
-    /// `factor : (PLUS | MINUS ) factor | INTEGER | LPAREN expr RPAREN`
+    /// `factor : PLUS factor | MINUS factor | INTEGER | LPAREN expr RPAREN | variable`
     ///
-    /// Return an `Integer` token value.
+    /// Return an `Integer` node.
     ///
     /// # Errors
     ///
     /// This method errors if the current token does not match with the eaten token.
     fn factor(&mut self) -> Result<AstNode> {
         let token = self.current_token.clone();
-        match token.kind {
-            TokenType::Plus => {
-                self.eat(TokenType::Plus)?;
+        let node = if token.kind == TokenType::Plus {
+            self.eat(TokenType::Plus)?;
+            AstNode::UnaryOp(Unary {
+                token,
+                expr: Box::new(self.factor()?),
+            })
+        } else {
+            self.variable()?
+        };
 
-                Ok(AstNode::UnaryOp(Unary {
-                    token,
-                    expr: Box::new(self.factor()?),
-                }))
-            }
-            TokenType::Minus => {
-                self.eat(TokenType::Minus)?;
-
-                Ok(AstNode::UnaryOp(Unary {
-                    token,
-                    expr: Box::new(self.factor()?),
-                }))
-            }
-            TokenType::Integer => {
-                self.eat(TokenType::Integer)?;
-
-                Ok(AstNode::Number(Num(token.value.parse()?)))
-            }
-            TokenType::LParen => {
-                self.eat(TokenType::LParen)?;
-                let node = self.expr()?;
-                self.eat(TokenType::RParen)?;
-
-                Ok(node)
-            }
-            _ => todo!(),
-        }
+        Ok(node)
     }
 
     /// `term : factor ((MUL | DIV) factor)*`
@@ -519,12 +506,18 @@ impl<'a> Parser<'a> {
     }
 
     fn parse(&mut self) -> Result<AstNode> {
-        self.expr()
+        let node = self.program()?;
+        if self.current_token.kind != TokenType::Eof {
+            return Err("Invalid syntax".into());
+        }
+
+        Ok(node)
     }
 }
 
 struct Interpreter<'a> {
     parser: Parser<'a>,
+    global_scope: HashMap<AstNode, AstNode>,
 }
 
 impl<'a> Visitor for Interpreter<'a> {
@@ -552,11 +545,32 @@ impl<'a> Visitor for Interpreter<'a> {
             _ => unreachable!(),
         }
     }
+
+    fn visit_compound(&self, children: &Vec<AstNode>) -> isize {
+        for child in children {
+            self.visit(child);
+        }
+
+        0 // FIXME: what should this return???
+    }
+
+    fn visit_assign(&self, node: &Assign) -> isize {
+        let var_name = node.left;
+        self.global_scope
+            .insert(var_name.into(), self.visit(&node.right))
+    }
+
+    fn visit_var(&self, node: &Token) -> isize {
+        todo!()
+    }
 }
 
 impl<'a> Interpreter<'a> {
     fn new(parser: Parser<'a>) -> Self {
-        Self { parser }
+        Self {
+            parser,
+            global_scope: HashMap::new(),
+        }
     }
 
     fn interpret(&mut self) -> Result<isize> {
@@ -632,5 +646,22 @@ mod tests {
             lexer.get_next_token().unwrap(),
             Token::new(TokenType::Eof, '\0')
         );
+    }
+
+    #[test]
+    fn parses_sample_program() {
+        let input = r#"
+            BEGIN
+                BEGIN
+                    number := 2;
+                    a := number;
+                    b := 10 * a + 10 * number / 4;
+                    c := a - - b
+                END;
+                x := 11;
+            END."#
+            .to_string();
+
+        assert!(interpret(input).is_ok());
     }
 }
