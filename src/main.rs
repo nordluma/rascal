@@ -78,6 +78,10 @@ trait Visitor {
             AstNode::UnaryOp(unary) => self.visit_unaryop(unary),
             AstNode::BinOps(bin_op) => self.visit_binop(bin_op),
             AstNode::Number(num) => self.visit_num(num),
+            AstNode::Compound(_) => todo!(),
+            AstNode::Assign(_) => todo!(),
+            AstNode::Var(_) => todo!(),
+            AstNode::NoOp => todo!(),
         }
     }
 
@@ -140,6 +144,10 @@ enum AstNode {
     BinOps(BinOp),
     UnaryOp(Unary),
     Number(Num),
+    Compound(Vec<AstNode>),
+    Assign(Assign),
+    Var(Token),
+    NoOp,
 }
 
 #[derive(Debug, Clone)]
@@ -163,6 +171,13 @@ impl std::ops::Deref for Num {
     fn deref(&self) -> &Self::Target {
         &self.0
     }
+}
+
+#[derive(Debug, Clone)]
+struct Assign {
+    left: String,
+    token: Token,
+    right: Token,
 }
 
 struct Lexer<'a> {
