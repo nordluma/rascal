@@ -175,9 +175,9 @@ impl std::ops::Deref for Num {
 
 #[derive(Debug, Clone)]
 struct Assign {
-    left: String,
+    left: Box<AstNode>,
     token: Token,
-    right: Token,
+    right: Box<AstNode>,
 }
 
 struct Lexer<'a> {
@@ -340,6 +340,71 @@ impl<'a> Parser<'a> {
         }
 
         Err("Invalid Syntax".into())
+    }
+
+    /// `program : compound_statement DOT`
+    fn program(&mut self) -> Result<AstNode> {
+        let node = self.compound_statement();
+        self.eat(TokenType::Dot)?;
+
+        node
+    }
+
+    /// `compound_statement : BEGIN statement_list END`
+    fn compound_statement(&mut self) -> Result<AstNode> {
+        self.eat(TokenType::Begin)?;
+        let nodes = self.statement_list()?;
+        self.eat(TokenType::End)?;
+
+        Ok(AstNode::Compound(Vec::from(nodes)))
+    }
+
+    /// `statement_list : statement | statement SEMI statement_list`
+    fn statement_list(&mut self) -> Result<Vec<AstNode>> {
+        let node = self.statement()?;
+        let mut results = vec![node];
+        while self.current_token.kind == TokenType::Semi {
+            self.eat(TokenType::Semi)?;
+            results.push(self.statement()?);
+        }
+
+        if self.current_token.kind == TokenType::ID {
+            return Err("Invalid syntax".into());
+        }
+
+        Ok(results)
+    }
+
+    /// `statement : compound_statement | assignment_statement | empty`
+    fn statement(&mut self) -> Result<AstNode> {
+        match self.current_token.kind {
+            TokenType::ID => self.compound_statement(),
+            TokenType::Begin => self.assignment_statement(),
+            _ => self.empty(),
+        }
+    }
+
+    /// `assignment_statement : variable ASSIGN expr`
+    fn assignment_statement(&mut self) -> Result<AstNode> {
+        let left = Box::new(self.variable()?);
+        let token = self.current_token.clone();
+        self.eat(TokenType::Assign)?;
+        let right = Box::new(self.expr()?);
+
+        Ok(AstNode::Assign(Assign { left, token, right }))
+    }
+
+    /// `variable : ID`
+    fn variable(&mut self) -> Result<AstNode> {
+        let node = AstNode::Var(self.current_token.clone());
+        self.eat(TokenType::ID)?;
+
+        Ok(node)
+    }
+
+    /// An empty production
+    fn empty(&self) -> Result<AstNode> {
+        Ok(AstNode::NoOp)
     }
 
     /// `factor : (PLUS | MINUS ) factor | INTEGER | LPAREN expr RPAREN`
