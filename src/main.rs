@@ -73,15 +73,15 @@ fn main() -> Result<()> {
 }
 
 trait Visitor {
-    fn visit(&self, node: &AstNode) -> isize {
+    fn visit(&self, node: &AstNode) -> Result<isize> {
         match node {
-            AstNode::UnaryOp(unary) => self.visit_unaryop(unary),
-            AstNode::BinOps(bin_op) => self.visit_binop(bin_op),
-            AstNode::Number(num) => self.visit_num(num),
-            AstNode::Compound(children) => self.visit_compound(children),
-            AstNode::Assign(assign) => self.visit_assign(assign),
+            AstNode::UnaryOp(unary) => Ok(self.visit_unaryop(unary)),
+            AstNode::BinOps(bin_op) => Ok(self.visit_binop(bin_op)),
+            AstNode::Number(num) => Ok(self.visit_num(num)),
+            AstNode::Compound(children) => Ok(self.visit_compound(children)),
+            AstNode::Assign(assign) => Ok(self.visit_assign(assign)),
             AstNode::Var(token) => self.visit_var(token),
-            AstNode::NoOp => self.visit_noop(),
+            AstNode::NoOp => Ok(self.visit_noop()),
         }
     }
 
@@ -90,7 +90,7 @@ trait Visitor {
     fn visit_binop(&self, node: &BinOp) -> isize;
     fn visit_compound(&self, children: &Vec<AstNode>) -> isize;
     fn visit_assign(&self, node: &Assign) -> isize;
-    fn visit_var(&self, node: &Token) -> isize;
+    fn visit_var(&self, node: &Token) -> Result<isize>;
 
     fn visit_noop(&self) -> isize {
         0
@@ -557,11 +557,14 @@ impl<'a> Visitor for Interpreter<'a> {
     fn visit_assign(&self, node: &Assign) -> isize {
         let var_name = node.left;
         self.global_scope
-            .insert(var_name.into(), self.visit(&node.right))
+            .insert(var_name.into(), self.visit(&node.right));
     }
 
-    fn visit_var(&self, node: &Token) -> isize {
-        todo!()
+    fn visit_var(&self, node: &Token) -> Result<isize> {
+        let var_name = node.value;
+        self.global_scope
+            .get(var_name)
+            .ok_or_else(|| Err("variable not found in global scope".into()))
     }
 }
 
@@ -575,7 +578,7 @@ impl<'a> Interpreter<'a> {
 
     fn interpret(&mut self) -> Result<isize> {
         let tree = self.parser.parse()?;
-        Ok(self.visit(&tree))
+        self.visit(&tree)
     }
 }
 
